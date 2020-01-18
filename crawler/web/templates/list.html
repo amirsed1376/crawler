@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body {
+  font-family: "Roboto", Helvetica, Arial, sans-serif;
+  font-weight: 100;
+  font-size: 20px;
+  line-height: 30px;
+  color: #777;
+  background: rgb(183, 201, 220);
+}
+
+
+</style>
+</head>
+<body>
+<br><br>
+  <h2 style="color:rgb(255, 208, 0) ; font-size:80px ; text-align:center ">CRAWLER</h2>
+
+<p>number = {{number}}</p>
+{% for i in crawl %}
+<a href={{i}} > {{i}}</a><br>
+{% endfor %}
+</body>
+</html>

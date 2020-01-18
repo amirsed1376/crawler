@@ -6,9 +6,9 @@ import requests
 from bs4 import BeautifulSoup
 import gzip
 import shutil
-
+from django.shortcuts import render
 class Crawler:
-    def __init__(self, url, depth, use_sitemap):
+    def __init__(self, url, depth, use_sitemap , use_form, form_data):
         self.base_url = url
         self.dis_allow = self.Nofollow()
         self.depth = int(depth)
@@ -17,9 +17,23 @@ class Crawler:
         self.sitemap = self.sitemap_url()
         self.links=[[self.base_url]]
         self.session=requests.session()
-        print('self.sitemap', self.sitemap)
+        self.use_form = use_form
+        self.form_data={}
+        self.find_form_data(form_data=form_data)
+        print("form_data",self.form_data)
         if len(self.sitemap) == 0:
             self.use_sitemap = False
+
+    def find_form_data(self,form_data):
+        try:
+            form_datas=str(form_data).split(",")
+            for data in form_datas:
+                try:
+                    self.form_data[data.split("=")[0].strip()]=data.split("=")[1].strip()
+                except:
+                    pass
+        except:
+            pass
 
     def crawl_gz(self, url):
         filename = url.split("/")[-1]
@@ -115,7 +129,8 @@ class Crawler:
     def crawl_sitemap(self):
         links = []
         for url in self.sitemap:
-            response = request(method="get", url=url)
+            print("URLLLLL",url)
+            response = self.session.request(method="get", url=url)
             bs = BeautifulSoup(response.text, "lxml")
             locs = bs.find_all("loc")
             depth = 0
@@ -163,7 +178,8 @@ class Crawler:
                         continue
                     response = self.session.get(url=url)
                     bs = BeautifulSoup(response.text, "lxml")
-                    self.form_expand(forms=bs.find_all("form"),depth=depth)
+                    if self.use_form:
+                        self.form_expand(forms=bs.find_all("form"),depth=depth)
 
                     (index, follow) = self.meta_tag(bs.find_all("meta"))
                     if not index:
@@ -222,7 +238,7 @@ class Crawler:
     def form_expand(self,forms,depth):
         if len(forms) == 0 :
             return
-        print("forms_______")
+
         for form in forms:
             try:
                 path=self.base_url
@@ -236,12 +252,18 @@ class Crawler:
                     continue
                 if "method=" in str(form):
                     method = form["method"]
-                inputs=form.find_all("inputs")
+                inputs=form.find_all("input")
                 inputs_name=[]
                 for input in inputs:
-                    if "name=" in str(input):
-                        inputs_name.append(inputs["name"])
-                data={"username":"953611133050" , "password":"1272628868"}
+                    try:
+                        inputs_name.append(input["name"])
+                    except:
+                        pass
+
+                print('inputs_name',inputs_name)
+                data=self.fill_data_form(inputs_name)
+                print('data',data)
+                # data={"username":"953611133050" , "password":"1272628868"}
                 self.links[depth].append(path)
                 response=self.session.request(method=method , url=path ,data=data)
                 bs = BeautifulSoup(response.text, "lxml")
@@ -261,15 +283,32 @@ class Crawler:
             except Exception as e:
                 print("NOOOOOOOOOOOOOOOOOOOOOO   ",e)
                 continue
-
+    def fill_data_form(self,args):
+        data={}
+        for arg in args :
+            try:
+                data[arg]=self.form_data[arg]
+            except:
+                pass
+        return data
 @csrf_exempt
 def crawler(request):
     if request.method == "POST":
-        use_sitemap = True
-        print("XXXXXXXXXXXX", request.POST)
-        if request.POST["sitemap"].lower() == "false":
-            use_sitemap = False
-        crawler = Crawler(url=request.POST["url"], depth=request.POST["depth"], use_sitemap=use_sitemap)
+        print("--------------------")
+        for key in request.POST.keys():
+            print(request.POST[key])
+        print("--------------------")
+
+        use_sitemap = False
+        use_form = False
+        try:
+            if request.POST["sitemap"].lower() == "on":
+                use_sitemap = True
+            if request.POST["use_form"].lower() == "on":
+                use_form = True
+        except:
+            pass
+        crawler = Crawler(url=request.POST["url"], depth=request.POST["depth"], use_sitemap=use_sitemap , use_form=use_form , form_data=request.POST["form_data"])
         links = crawler.crawl()
         urls = []
         if not crawler.use_sitemap:
@@ -280,9 +319,12 @@ def crawler(request):
         else:
             urls = links
         dic = {"number": len(urls), "crawl": urls}
-        jsn = json.dumps(dic)
-        return HttpResponse(jsn)
+        # jsn = json.dumps(dic)
+        # return HttpResponse(jsn)
+        return render(request,"list.html",dic)
 
+    else:
+        return render(request,"crawler.html",{})
 # class crawler5()
 # class Crawler5(APIView):
 #     def get(self, request, format=None):
