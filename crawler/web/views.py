@@ -263,7 +263,6 @@ class Crawler:
                 print('inputs_name',inputs_name)
                 data=self.fill_data_form(inputs_name)
                 print('data',data)
-                # data={"username":"953611133050" , "password":"1272628868"}
                 self.links[depth].append(path)
                 response=self.session.request(method=method , url=path ,data=data)
                 bs = BeautifulSoup(response.text, "lxml")
