@@ -1,20 +1,29 @@
+from django.http import HttpResponse
+import json
+from django.views.decorators.csrf import csrf_exempt
+from requests import request,post,get,session
 import requests
 from bs4 import BeautifulSoup
 import gzip
 import shutil
-url = "https://dkstatics-public.digikala.com/digikala-site-map/100127566.gz"
-filename = url.split("/")[-1]
-with open(filename, "wb") as f:
-    r = requests.get(url)
-    f.write(r.content)
+data={"username":"953611133050","password":"12726288468"}
+s=session()
+response=s.post(url="http://lms.ui.ac.ir/login" ,data=data )
+print(s.cookies)
+print(response.status_code)
+# response = post()
+# print(response.text)
+print(s.headers.values())
+bs = BeautifulSoup(response.text, "lxml")
+for item in bs.find_all("a"):
+    print("________________")
+    try:
+        # if item["href"][0] == 0 :
+        url="http://lms.ui.ac.ir"+item["href"]
+        print(url)
+        resp=s.get(url=url)
+        print(resp.text)
 
-
-
-with gzip.open(filename, 'rb') as f_in:
-    with open('file.htm', 'wb') as f_out:
-        shutil.copyfileobj(f_in, f_out)
-
-file = open('file.htm' , "r")
-bs = BeautifulSoup(file.read(), "lxml")
-for item in bs.find_all("loc"):
-    print(item)
+    except:
+        continue
+    # print(get(url=))
