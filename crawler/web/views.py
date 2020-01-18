@@ -10,18 +10,18 @@ from django.shortcuts import render
 class Crawler:
     def __init__(self, url, depth, use_sitemap , use_form, form_data):
         self.base_url = url
-        self.dis_allow = self.Nofollow()
+        self.dis_allow = self.disallow_list()
         self.depth = int(depth)
         self.no_index = self.dis_allow
         self.use_sitemap = use_sitemap
-        self.sitemap = self.sitemap_url()
+        self.sitemap_links = self.sitemap_url()
         self.links=[[self.base_url]]
         self.session=requests.session()
         self.use_form = use_form
         self.form_data={}
         self.find_form_data(form_data=form_data)
         print("form_data",self.form_data)
-        if len(self.sitemap) == 0:
+        if len(self.sitemap_links) == 0:
             self.use_sitemap = False
 
     def find_form_data(self,form_data):
@@ -56,7 +56,7 @@ class Crawler:
             print("<<<<<<<", str(loc)[index1 + 1:index2])
         return links
 
-    def Nofollow(self):
+    def disallow_list(self):
         disallow_list = []
         try:
             response = request(method="get", url=self.base_url + "robots.txt")
@@ -100,13 +100,13 @@ class Crawler:
                     return False
         return True
 
-    def size(self, links):
-        len_size = []
-        for i in links:
-            len_size.append(len(i))
-        return sum(len_size)
+    # def size(self, links):
+    #     len_size = []
+    #     for i in links:
+    #         len_size.append(len(i))
+    #     return sum(len_size)
 
-    def is_not_readable(self, url: str):
+    def is_not_crawlable(self, url: str):
         resource = url[len(self.base_url):]
         print("RESOURSE", resource)
         if "." not in resource:
@@ -126,30 +126,67 @@ class Crawler:
                     follow = False
         return (index, follow)
 
+    def make_url(self,url):
+        path = url
+        try:
+            if str(url).strip()[0] == "/":
+                path = self.base_url + str(url)[1:].strip()
+            elif self.base_url in str(url):
+                path = str(url).strip()
+        except:
+            pass
+        return path
+
     def crawl_sitemap(self):
         links = []
-        for url in self.sitemap:
-            print("URLLLLL",url)
-            response = self.session.request(method="get", url=url)
-            bs = BeautifulSoup(response.text, "lxml")
-            locs = bs.find_all("loc")
-            depth = 0
-            for loc in locs:
-                index1 = str(loc).index(">")
-                index2 = str(loc).index("</")
-                location = str(loc)[index1 + 1:index2]
-                if "." in location:
-                    if location.split(".")[-1] == "gz":
-                        if depth >= self.depth:
+        for url in self.sitemap_links:
+            try:
+                print("??????????",url)
+                response = self.session.request(method="get", url=url)
+                bs = BeautifulSoup(response.text, "lxml")
+                locs = bs.find_all("loc")
+                sitemaps=bs.find_all("sitemap")
+                for sitmap in sitemaps:
+                    locs2=sitmap.find_all("loc")
+                    for loc in locs :
+                        index1 = str(loc).index(">")
+                        index2 = str(loc).index("</")
+                        location = str(loc)[index1 + 1:index2]
+                        location=self.make_url(location)
+                        if location not in self.sitemap_links:
+                            self.sitemap_links.append(location)
+                        if self.make_url(location) not in links:
+                            links.append(self.make_url(location))
+                depth = 0
+                for loc in locs:
+                    index1 = str(loc).index(">")
+                    index2 = str(loc).index("</")
+                    location = str(loc)[index1 + 1:index2]
+                    if "." in location:
+                        if location.split(".")[-1] == "gz":
+                            if depth >= self.depth:
+                                continue
+                            links.extend(self.crawl_gz(url=location))
+                            depth += 1
                             continue
-                        links.extend(self.crawl_gz(url=location))
-                        depth += 1
-                        continue
-                print("<<<<<<<", location)
-                links.append(location)
+                    if self.make_url(location) not in links:
+                        links.append(self.make_url(location))
+            except:
+                pass
         return links
 
+    # def is_sitemap(self,path):
+    #     result = False
+    #     try:
+    #         response = self.session.get(url=path)
+    #         bs = BeautifulSoup(response.text, "lxml")
+    #         locs=bs.find_all("loc")
+    #         if len(locs)>0:
+    #             result=True
+    #     except:
+    #         pass
 
+        # return result
 
     def crawl(self):
         if self.use_sitemap:
@@ -168,7 +205,7 @@ class Crawler:
                 print(">>>>>>>>>>>>", url)
 
                 try:
-                    if self.is_not_readable(url=url):
+                    if self.is_not_crawlable(url=url):
                         print("NO READABLE")
                         continue
 
@@ -189,22 +226,6 @@ class Crawler:
                     if not follow:
                         print("__nofollow____")
                         continue
-                    # for link in bs.find_all("a"):
-                    #     if "href=" not in str(link):
-                    #         continue
-                    #     if len(link["href"]) == 0:
-                    #         continue
-                    #     if str(link["href"]).strip()[0] == "/":
-                    #         path = self.base_url + str(link["href"])[1:].strip()
-                    #         if self.no_visit(path=path, links=links):
-                    #             if path not in self.dis_allow:
-                    #                 links[depth + 1].append(path)
-                    #     elif self.base_url in str(link["href"]):
-                    #         path = str(link["href"]).strip()
-                    #         if self.no_visit(path=path, links=links):
-                    #             if path not in self.dis_allow:
-                    #                 links[depth + 1].append(path)
-                    # self.links[depth+1].extend(self.expand(bs=bs,links=self.links))
                     for url in self.expand(bs=bs):
                         if self.no_visit(path=url):
                             self.links[depth + 1].append(url)
@@ -290,6 +311,7 @@ class Crawler:
             except:
                 pass
         return data
+
 @csrf_exempt
 def crawler(request):
     if request.method == "POST":
@@ -324,8 +346,3 @@ def crawler(request):
 
     else:
         return render(request,"crawler.html",{})
-# class crawler5()
-# class Crawler5(APIView):
-#     def get(self, request, format=None):
-#         print("xxxxxxxxxxxxxxxxxxxxxxxx")
-#         return Response({"content": "there is an error"})
